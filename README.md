@@ -20,6 +20,34 @@ GPU** — the difference between a 5 s clip taking ~60 minutes and taking ~13-15
 
 No file of core ComfyUI is modified.
 
+## Do you need this?
+
+**Only if you split the render into two runs.** If your card can hold the UNet and the VAE at the same
+time — a recent NVIDIA card with ~16 GB or more, or the bigger RDNA cards — you sample and decode in a
+single run, exactly like the official MiniMax H3 template does, and you never touch these nodes.
+
+What the split buys you is not a workaround for weak hardware alone: the VAE decode is the largest VRAM
+peak of the pipeline, so on a small card the two halves cannot coexist at all.
+
+Now the part that is easy to get wrong: **the core nodes cannot write an H3 AV latent on any card.**
+In `nodes.py`, `SaveLatent.save` does `samples["samples"].contiguous()` with no dtype, device or
+architecture condition — the nested object has no `.contiguous()` anywhere — and it stores safetensors,
+which has no representation for a nested video+audio pair. Core `LoadLatent` expects a single
+`latent_tensor` key inside a `.latent` safetensors file in `input/`. So with core nodes the split is
+impossible *regardless of how much VRAM you have*.
+
+That makes these nodes useful past the low-VRAM case, whenever you want a render to be resumable:
+
+- re-decode the same sampling with a different tiling config instead of paying for the sampling again
+  (11-16 min per attempt on the setup measured below),
+- A/B the VAE or the tiling on a single sampling run,
+- queue several samplings and decode them later in a second batch,
+- move the latent between machines, or keep it while the server is restarted for any reason,
+- long clips where the decode runs out of memory even though the sampling fit.
+
+If none of that applies to you, install nothing — the official H3 template with `VAEDecodeTiled` (or
+plain `VAEDecode`, if the VAE fits next to your UNet) is all you need.
+
 ## Install
 
 ```bash
