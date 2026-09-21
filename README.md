@@ -37,6 +37,43 @@ Restart ComfyUI (or reload the node list). The nodes appear under the `latent` c
 | `SaveLatentAV` | `samples` (LATENT), `filename_prefix` | – (output node) | writes `output/latent_av/<prefix>_<timestamp>.pt` and a stable `<prefix>.pt` symlink |
 | `LoadLatentAV` | `latent` (filename from `output/latent_av/`) | `LATENT` | loads it back as the original nested object |
 
+## Workflows (ready to load)
+
+Two UI workflows that use these nodes, in `workflows/`:
+
+| file | what it does | notable values |
+|---|---|---|
+| `h3_pass1_sample_latent.json` | the whole sampling half: text encoder + UNet + turbo LoRA + the H3 image-to-video conditioning + the 4-step custom sampler, ending in **Save Latent AV** | `864x576`, `length 73`, `er_sde` / `simple` / 4 steps, `shift_video 12` / `shift_audio 3.1`, LoRA strength `0.75` |
+| `h3_pass2_decode_latent.json` | the decode half: **Load Latent AV** → `VAEDecodeTiled` (video) + `VAEDecodeAudio` → `SaveImage` + `SaveAudio` | tile `256` / overlap `64` / temporal `64` / temporal overlap `8` |
+
+![Pass 1: sampling, ending in Save Latent AV](workflows/screenshots/pass1_sample_latent.png)
+
+![Pass 2: Load Latent AV, tiled decode, image + audio out](workflows/screenshots/pass2_decode_latent.png)
+
+**How to open them:** ComfyUI → *Workflow → Open* (or drag the `.json` onto the canvas). They are
+regular frontend workflows — the same ones the screenshots above show, exported from the UI.
+
+**Before you queue them, three things:**
+
+1. **Pass 1 — point it at your own input.** `Load Image` must hold your start frame, and the shot
+   description inside `MiniMax H3 Image to Video` is the placeholder
+   `at 0.00 seconds into the target video, <Picture 1> ...`. Replace it with your prompt in the format
+   the H3 text encoder expects.
+2. **Both — the model filenames must exist** in `models/diffusion_models`, `models/text_encoders`,
+   `models/vae` and `models/loras` (or just pick your files in the dropdowns). The names in the
+   workflows are the ones these measurements were taken with.
+3. **Pass 2 — pick your latent** in the `Load Latent AV` dropdown: it lists `output/latent_av/*.pt`,
+   i.e. whatever pass 1 wrote. The node shows a red *"missing a required model file"* badge in the
+   screenshots above precisely because that file did not exist when they were taken — that badge is
+   expected until you select your own.
+
+Run pass 1 with the VAE on the CPU (`--cpu-vae`), then restart ComfyUI without that flag and run
+pass 2, as described below.
+
+The same two graphs are also in `examples/` in **API format** (`{"prompt": {...}}`), for posting
+straight to `/prompt` from a script; the UI versions above are the same graph, just serialized by the
+frontend.
+
 ## The two-pass pipeline
 
 Sample with the VAE on the CPU, then decode with the VAE on the GPU in a separate server run:
