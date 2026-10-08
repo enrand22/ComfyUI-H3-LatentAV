@@ -125,6 +125,13 @@ VAE on the CPU and decode it on the GPU. `examples/h3_pass1_latent.json` and
 All of it on one machine: **Radeon RX 7600, 8 GB VRAM (gfx1102, ROCm)**, 46 GB RAM, single
 consumer card, MiniMax H3 FL2VA (pruned w4a8) + the 4-step turbo LoRA.
 
+> The example workflows now point at the **INT6W6A8** checkpoint
+> (`minimax_h3_flref2va_pruned_int6w6a8.safetensors`, 14.9 GB) instead of the w4a8.
+> Measured on 2026-10-07, same prompt and seed: it renders with visibly more detail
+> and ran the sampling pass in 7.7 min against 8.3 for the w4a8, peaking at 8121 MB
+> of 8176. The numbers in the table below were measured with the w4a8 and still hold
+> as the cost model (they track latent volume, not the checkpoint).
+
 | clip | latent volume V | sampling (pass 1) | tiled decode (pass 2) | total | one pass, VAE on CPU |
 |---|---|---|---|---|---|
 | 141 f @ 864×576 (5.88 s) | 274K | 11.3 min | ~2 min | **~13-15 min** | 57-67 min |
